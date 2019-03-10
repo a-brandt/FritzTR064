@@ -91,25 +91,19 @@ public class GetAllHosts {
 				logger.info("{} -> {}", x.getKey(), x.getValue());
 			}
 
-			// key NewX_AVM-DE_HostListPath contains a link to a xml file
+			// key "NewX_AVM-DE_HostListPath" contains a link to a xml file
 			try {
+				// read and parse the xml file
 				InputStream is = fc.getXMLIS(response1.getData().get("NewX_AVM-DE_HostListPath"));
-
 				JAXBContext jaxbContext = JAXBContext.newInstance(RootList.class);
 				Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
-				RootList root = (RootList) jaxbUnmarshaller.unmarshal(is);
+				RootList rootList = (RootList) jaxbUnmarshaller.unmarshal(is);
 
-				// String result = new BufferedReader(new
-				// InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
-
-				if (root != null && root.getItems() != null) {
-					for (var item : root.getItems()) {
-						logger.info("{} {} {} {} {}", item.getIndex(), item.getMacAddress(), item.getIpAddress(),
-								item.getHostName(), item.getInterfaceType());
+				if (rootList != null && rootList.getItems() != null) {
+					for (var item : rootList.getItems()) {
+						logger.info("{}", item);
 					}
 				}
-
-				logger.info("result: {}", root);
 
 			} catch (UnsupportedOperationException | IOException | JAXBException e1) {
 				logger.error("got Exception", e1);

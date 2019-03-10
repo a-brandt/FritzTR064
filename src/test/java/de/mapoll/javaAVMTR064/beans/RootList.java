@@ -24,4 +24,9 @@ public class RootList {
 		this.items = items;
 	}
 
+	@Override
+	public String toString() {
+		return "RootList [items=" + items + "]";
+	}
+
 }
