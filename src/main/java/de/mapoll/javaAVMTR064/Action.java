@@ -39,6 +39,8 @@ import javax.xml.soap.SOAPBody;
 import javax.xml.soap.SOAPBodyElement;
 import javax.xml.soap.SOAPEnvelope;
 import javax.xml.soap.SOAPException;
+import javax.xml.soap.SOAPHeader;
+import javax.xml.soap.SOAPHeaderElement;
 import javax.xml.soap.SOAPMessage;
 import javax.xml.soap.SOAPPart;
 
@@ -136,6 +138,34 @@ public class Action {
     }
 
     public Response execute(Map<String, Object> arguments) throws UnsupportedOperationException, IOException {
+    	Response respose = null;
+    	
+    	if (connection.getServerNonce() == null) {
+    		
+    		respose = execute(arguments, null, null, connection.getUser(), null);
+    		
+    		if (respose.getHeaderData().containsKey("Nonce")) {
+    			
+    			String serverNonce = respose.getHeaderData().get("Nonce");
+    			String realm = respose.getHeaderData().get("Realm");			
+    			String auth = connection.getSoapSecretString(realm, serverNonce);
+    			
+    			respose = execute(arguments, serverNonce, auth, connection.getUser(), realm);
+    			
+    			if (respose.getHeaderData().containsKey("Status") && respose.getHeaderData().get("Status").equals("Authenticated")) { 
+    				connection.setRealm(realm);
+    				connection.setServerNonce(respose.getHeaderData().get("Nonce"));
+    			}
+    		}
+    	}
+    	else {
+    		respose = execute(arguments, connection.getServerNonce(), connection.getSoapSecretString(), connection.getUser(), connection.getRealm());
+    	}
+    	
+    	return respose;
+    }
+    
+    public Response execute(Map<String, Object> arguments, String serverNonce, String auth, String user, String realm) throws UnsupportedOperationException, IOException {
         Set<String> inArguments = new HashSet<String>();
         for (String a : argumentOut.keySet()) {
             if (!argumentOut.get(a)) {
@@ -174,6 +204,24 @@ public class Action {
             SOAPMessage soapMsg = factory.createMessage();
             SOAPPart part = soapMsg.getSOAPPart();
             SOAPEnvelope envelope = part.getEnvelope();
+                        
+            SOAPHeader header = envelope.getHeader();
+            if (serverNonce == null) {
+            	SOAPHeaderElement he1 = header.addHeaderElement(envelope.createName("InitChallenge", "h",
+            		"http://soap-authentication.org/digest/2001/10/"));
+            	he1.setAttribute("SOAP-ENV:mustUnderstand", "1");
+            	he1.addChildElement("UserID").addTextNode(user);
+            }
+            else {
+            	SOAPHeaderElement he1 = header.addHeaderElement(envelope.createName("ClientAuth", "h",
+                		"http://soap-authentication.org/digest/2001/10/"));
+                	he1.setAttribute("SOAP-ENV:mustUnderstand", "1");
+                	he1.addChildElement("Nonce").addTextNode(serverNonce);
+                	he1.addChildElement("Auth").addTextNode(auth);
+                	he1.addChildElement("UserID").addTextNode(user);
+                	he1.addChildElement("Realm").addTextNode(realm);            	
+            }
+            
             SOAPBody body = envelope.getBody();
             envelope.setEncodingStyle("http://schemas.xmlsoap.org/soap/encoding/");
             SOAPBodyElement element = body.addBodyElement(envelope.createName(this.name, "u",
@@ -248,8 +296,16 @@ public class Action {
         } catch (SOAPException e) {
             throw new IOException(e.getMessage());
         }
+        
+		if (ret.getHeaderData() != null && ret.getHeaderData().containsKey("Nonce")) {
+			connection.setServerNonce(ret.getHeaderData().get("Nonce"));
+		}
+        
         return ret;
 
     }
 
+    public ActionType getActionType() {
+    	return actionXML;
+    }
 }
